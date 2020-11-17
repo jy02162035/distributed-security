@@ -25,7 +25,11 @@ import javax.sql.DataSource;
 import java.util.Arrays;
 
 /**
- * @author Administrator
+ * 授权服务配置总结：授权服务配置分成三大块，可以关联记忆。
+ * 既然要完成认证，它首先得知道客户端信息从哪儿读取，因此要进行客户端详情配置。
+ * 既然要颁发token，那必须得定义token的相关endpoint（访问URL），以及token如何存取，以及客户端支持哪些类型的 token。
+ * 既然暴露除了一些endpoint，那对这些endpoint可以定义一些安全上的约束等
+ *
  * @version 1.0
  * 授权服务配置
  **/
@@ -33,12 +37,18 @@ import java.util.Arrays;
 @EnableAuthorizationServer
 public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
 
+    /**
+     * 令牌存储策略【InMemoryTokenStore/JdbcTokenStore/JwtTokenStore】
+     */
     @Autowired
     private TokenStore tokenStore;
 
     @Autowired
     private ClientDetailsService clientDetailsService;
 
+    /**
+     * 授权码模式
+     */
     @Autowired
     private AuthorizationCodeServices authorizationCodeServices;
 
@@ -51,19 +61,15 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
     @Autowired
     PasswordEncoder passwordEncoder;
 
-    //将客户端信息存储到数据库
-    @Bean
-    public ClientDetailsService clientDetailsService(DataSource dataSource) {
-        ClientDetailsService clientDetailsService = new JdbcClientDetailsService(dataSource);
-        ((JdbcClientDetailsService) clientDetailsService).setPasswordEncoder(passwordEncoder);
-        return clientDetailsService;
-    }
-
-    //客户端详情服务
+    // *****************************************************************************************************
+    // 1.客户端详情服务，配置哪些客户端可以来授权服务、申请令牌
     @Override
     public void configure(ClientDetailsServiceConfigurer clients)
             throws Exception {
+        // 数据库模式
         clients.withClientDetails(clientDetailsService);
+
+        // 内存模式
        /* clients.inMemory()// 使用in-memory存储
                 .withClient("c1")// client_id
                 .secret(new BCryptPasswordEncoder().encode("secret"))//客户端密钥
@@ -76,8 +82,16 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
                 ;
     }
 
+    //将客户端信息存储到数据库
+    @Bean
+    public ClientDetailsService clientDetailsService(DataSource dataSource) {
+        ClientDetailsService clientDetailsService = new JdbcClientDetailsService(dataSource);
+        ((JdbcClientDetailsService) clientDetailsService).setPasswordEncoder(passwordEncoder);
+        return clientDetailsService;
+    }
 
-    //令牌管理服务
+    // *****************************************************************************************************
+    // 2.令牌管理服务，必须有
     @Bean
     public AuthorizationServerTokenServices tokenService() {
         DefaultTokenServices service=new DefaultTokenServices();
@@ -94,33 +108,37 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
         return service;
     }
 
-    //设置授权码模式的授权码如何存取，暂时采用内存方式
-/*    @Bean
-    public AuthorizationCodeServices authorizationCodeServices() {
-        return new InMemoryAuthorizationCodeServices();
-    }*/
+    // 2.令牌访问暴漏端点，访问令牌的URL。
+    // 令牌服务
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
+        endpoints
+                // 认证管理器，当你选择了资源所有者密码（password）授权类型的时候，请设置 这个属性注入一个 AuthenticationManager 对象
+                .authenticationManager(authenticationManager)
+                // 这个属性是用来设置授权码服务的（即 AuthorizationCodeServices 的实例对象），主要用于"authorization_code"授权码类型模式。
+                .authorizationCodeServices(authorizationCodeServices)//授权码服务
+                .tokenServices(tokenService())//令牌管理服务
+                .allowedTokenEndpointRequestMethods(HttpMethod.POST); // 允许post提交访问令牌
+    }
 
     @Bean
     public AuthorizationCodeServices authorizationCodeServices(DataSource dataSource) {
         return new JdbcAuthorizationCodeServices(dataSource);//设置授权码模式的授权码如何存取
     }
-
-    @Override
-    public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
-        endpoints
-                .authenticationManager(authenticationManager)//认证管理器
-                .authorizationCodeServices(authorizationCodeServices)//授权码服务
-                .tokenServices(tokenService())//令牌管理服务
-                .allowedTokenEndpointRequestMethods(HttpMethod.POST);
-    }
-
+    // *****************************************************************************************************
+    // 3.令牌访问端点安全策略
     @Override
     public void configure(AuthorizationServerSecurityConfigurer security){
         security
-                .tokenKeyAccess("permitAll()")                    //oauth/token_key是公开
-                .checkTokenAccess("permitAll()")                  //oauth/check_token公开
-                .allowFormAuthenticationForClients()				//表单认证（申请令牌）
+                .tokenKeyAccess("permitAll()")    //oauth/token_key是公开，当使用JwtToken且使用非对称加密时，资源服务用于获取公钥而开放的，这里指这个 endpoint完全公开
+                .checkTokenAccess("permitAll()")  //oauth/check_token公开
+                .allowFormAuthenticationForClients() //表单认证（申请令牌）
         ;
     }
+    //设置授权码模式的授权码如何存取，暂时采用内存方式
+/*    @Bean
+    public AuthorizationCodeServices authorizationCodeServices() {
+        return new InMemoryAuthorizationCodeServices();
+    }*/
 
 }
