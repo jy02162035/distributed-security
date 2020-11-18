@@ -14,6 +14,7 @@ import org.springframework.security.oauth2.config.annotation.web.configurers.Aut
 import org.springframework.security.oauth2.provider.ClientDetailsService;
 import org.springframework.security.oauth2.provider.client.JdbcClientDetailsService;
 import org.springframework.security.oauth2.provider.code.AuthorizationCodeServices;
+import org.springframework.security.oauth2.provider.code.InMemoryAuthorizationCodeServices;
 import org.springframework.security.oauth2.provider.code.JdbcAuthorizationCodeServices;
 import org.springframework.security.oauth2.provider.token.AuthorizationServerTokenServices;
 import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
@@ -97,17 +98,19 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
         DefaultTokenServices service=new DefaultTokenServices();
         service.setClientDetailsService(clientDetailsService);//客户端详情服务
         service.setSupportRefreshToken(true);//支持刷新令牌
-        service.setTokenStore(tokenStore);//令牌存储策略
-        //令牌增强
+        service.setTokenStore(tokenStore); //令牌存储策略，自定义Jwt存储
+
+        // *******************************************************
+        // 利用JwtAccessTokenConverter进行令牌增强
         TokenEnhancerChain tokenEnhancerChain = new TokenEnhancerChain();
         tokenEnhancerChain.setTokenEnhancers(Arrays.asList(accessTokenConverter));
         service.setTokenEnhancer(tokenEnhancerChain);
+        // *******************************************************
 
         service.setAccessTokenValiditySeconds(7200); // 令牌默认有效期2小时
         service.setRefreshTokenValiditySeconds(259200); // 刷新令牌默认有效期3天
         return service;
     }
-
     // 2.令牌访问暴漏端点，访问令牌的URL。
     // 令牌服务
     @Override
@@ -120,11 +123,17 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
                 .tokenServices(tokenService())//令牌管理服务
                 .allowedTokenEndpointRequestMethods(HttpMethod.POST); // 允许post提交访问令牌
     }
-
+    // 设置授权码模式的授权码如何存取，采用DB方式
     @Bean
     public AuthorizationCodeServices authorizationCodeServices(DataSource dataSource) {
         return new JdbcAuthorizationCodeServices(dataSource);//设置授权码模式的授权码如何存取
     }
+/*    //设置授权码模式的授权码如何存取，暂时采用内存方式
+    @Bean
+    public AuthorizationCodeServices authorizationCodeServices() {
+        return new InMemoryAuthorizationCodeServices();
+    }*/
+
     // *****************************************************************************************************
     // 3.令牌访问端点安全策略
     @Override

@@ -26,8 +26,8 @@ public class ResouceServerConfig extends ResourceServerConfigurerAdapter {
     @Override
     public void configure(ResourceServerSecurityConfigurer resources) {
         resources.resourceId(RESOURCE_ID)//资源 id
-                .tokenStore(tokenStore)
-//                .tokenServices(tokenService())//验证令牌的服务
+                .tokenStore(tokenStore) //本地jwt token校验
+//                .tokenServices(tokenService())//远程调用授权服务 验证令牌的服务
                 .stateless(true);
     }
 
@@ -36,7 +36,7 @@ public class ResouceServerConfig extends ResourceServerConfigurerAdapter {
 
         http
                 .authorizeRequests()
-                .antMatchers("/**").access("#oauth2.hasScope('ROLE_ADMIN')")
+                .antMatchers("/**").access("#oauth2.hasScope('ROLE_USER')")
                 .and().csrf().disable()
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
     }
