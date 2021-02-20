@@ -27,9 +27,9 @@ import java.util.Arrays;
 
 /**
  * 授权服务配置总结：授权服务配置分成三大块，可以关联记忆。
- * 既然要完成认证，它首先得知道客户端信息从哪儿读取，因此要进行客户端详情配置。
- * 既然要颁发token，那必须得定义token的相关endpoint（访问URL），以及token如何存取，以及客户端支持哪些类型的 token。
- * 既然暴露除了一些endpoint，那对这些endpoint可以定义一些安全上的约束等
+ * 1.既然要完成认证，它首先得知道客户端信息从哪儿读取，因此要进行客户端详情配置。
+ * 2.既然要颁发token，那必须得定义token的相关endpoint（访问URL），以及token如何存取，以及客户端支持哪些类型的 token。
+ * 3.既然暴露除了一些endpoint，那对这些endpoint可以定义一些安全上的约束等
  *
  * @version 1.0
  * 授权服务配置
@@ -92,6 +92,18 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
     }
 
     // *****************************************************************************************************
+    // 2.令牌访问暴漏端点，访问令牌的URL。
+    // 令牌服务
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
+        endpoints
+                // 认证管理器，当你选择了资源所有者密码（password）授权类型的时候，请设置 这个属性注入一个 AuthenticationManager 对象
+                .authenticationManager(authenticationManager)
+                // 这个属性是用来设置授权码服务的（即 AuthorizationCodeServices 的实例对象），主要用于"authorization_code"授权码类型模式。
+                .authorizationCodeServices(authorizationCodeServices)//授权码服务
+                .tokenServices(tokenService())//令牌管理服务
+                .allowedTokenEndpointRequestMethods(HttpMethod.POST); // 允许post提交访问令牌
+    }
     // 2.令牌管理服务，必须有
     @Bean
     public AuthorizationServerTokenServices tokenService() {
@@ -111,18 +123,7 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
         service.setRefreshTokenValiditySeconds(259200); // 刷新令牌默认有效期3天
         return service;
     }
-    // 2.令牌访问暴漏端点，访问令牌的URL。
-    // 令牌服务
-    @Override
-    public void configure(AuthorizationServerEndpointsConfigurer endpoints) {
-        endpoints
-                // 认证管理器，当你选择了资源所有者密码（password）授权类型的时候，请设置 这个属性注入一个 AuthenticationManager 对象
-                .authenticationManager(authenticationManager)
-                // 这个属性是用来设置授权码服务的（即 AuthorizationCodeServices 的实例对象），主要用于"authorization_code"授权码类型模式。
-                .authorizationCodeServices(authorizationCodeServices)//授权码服务
-                .tokenServices(tokenService())//令牌管理服务
-                .allowedTokenEndpointRequestMethods(HttpMethod.POST); // 允许post提交访问令牌
-    }
+
     // 设置授权码模式的授权码如何存取，采用DB方式
     @Bean
     public AuthorizationCodeServices authorizationCodeServices(DataSource dataSource) {
